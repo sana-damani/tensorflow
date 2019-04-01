@@ -395,6 +395,8 @@ class ParametricDotTestWithoutLayoutAssignment : public ParametricDotTest {
   ParametricDotTestWithoutLayoutAssignment() {
     execution_options_.mutable_debug_options()->add_xla_disable_hlo_passes(
         "layout-assignment");
+    execution_options_.mutable_debug_options()->add_xla_disable_hlo_passes(
+        "tiling-assignment");
     // Disable algebraic simplification because the pass may replace a dot
     // instruction with a layout-changing multiplication instruction.
     execution_options_.mutable_debug_options()->add_xla_disable_hlo_passes(
@@ -1322,6 +1324,39 @@ ENTRY SmallIntegerDot {
   arg0 = s32[1,2,2] parameter(0)
   arg1 = s32[1,2,1] parameter(1)
   ROOT dot = s32[1,2,1] dot(arg0, arg1), lhs_batch_dims={0}, lhs_contracting_dims={2}, rhs_batch_dims={0}, rhs_contracting_dims={1}
+}
+)";
+
+  EXPECT_TRUE(RunAndCompare(hlo_string, ErrorSpec{4e-3, 4e-3}));
+}
+
+XLA_TEST_F(DotOperationTextTest, DISABLED_ON_CPU(GpuTransposeOutput)) {
+  absl::string_view hlo_string =
+      R"(
+HloModule TransposeOutput
+
+ENTRY TransposeOutput {
+  p0 = f32[32,32] parameter(0)
+  p1 = f32[32,64] parameter(1)
+  dot = f32[32,64] dot(p0, p1), lhs_contracting_dims={0}, rhs_contracting_dims={0}
+  ROOT tr = f32[64,32] transpose(dot), dimensions={1,0}
+}
+)";
+
+  EXPECT_TRUE(RunAndCompare(hlo_string, ErrorSpec{4e-3, 4e-3}));
+}
+
+XLA_TEST_F(DotOperationTextTest, MatrixVectorComplex) {
+  absl::string_view hlo_string =
+      R"(
+HloModule MatrixVectorComplex
+
+ENTRY MatrixVectorComplex {
+  p0 = c64[5,5] parameter(0)
+  p1 = c64[5,1] parameter(1)
+  p2 = c64[5,1] parameter(2)
+  dot = c64[5,1] dot(p0, p1), lhs_contracting_dims={1}, rhs_contracting_dims={0}
+  ROOT add = c64[5,1] add(dot, p2)
 }
 )";
 

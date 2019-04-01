@@ -221,13 +221,23 @@ class AutoLambdaTest(keras_parameterized.TestCase):
     size_500 = _construct_graph_of_size(500)
 
     # Check construction time grows approx. linearly with size.
-    e = 2  # Fudge factor to prevent flakiness.
+    e = 3  # Fudge factor to prevent flakiness.
     self.assertLess(size_500, (10 * e) * size_50)
 
   def test_no_mask_tracking(self):
     x = keras.backend.placeholder((10, 10))
     y = keras.layers.Masking(0.)(x)
     self.assertTrue(y._keras_mask._keras_history_checked)
+
+  def test_built(self):
+    inputs = keras.Input(shape=(10,))
+    outputs = gen_nn_ops.relu(inputs)
+    model = keras.Model(inputs, outputs)
+    model.compile('sgd', 'mse')
+    for layer in model.layers:
+      self.assertTrue(layer.built)
+    # Test something that requires Layers to be built.
+    model.summary()
 
 
 if __name__ == '__main__':

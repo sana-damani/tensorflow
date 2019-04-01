@@ -17,6 +17,7 @@ limitations under the License.
 
 #include "tensorflow/c/c_api.h"
 #include "tensorflow/c/eager/c_api_internal.h"
+#include "tensorflow/core/profiler/rpc/client/capture_profile.h"
 #include "tensorflow/core/profiler/rpc/profiler_server.h"
 
 using tensorflow::string;
@@ -38,7 +39,7 @@ void TFE_DeleteProfiler(TFE_Profiler* profiler) { delete profiler; }
 void TFE_ProfilerSerializeToString(TFE_Context* ctx, TFE_Profiler* profiler,
                                    TF_Buffer* buf, TF_Status* status) {
   TFE_ContextAsyncWait(ctx, status);
-  if (!status->status.ok()) return;
+  if (TF_GetCode(status) != TF_OK) return;
   string content;
   status->status = profiler->profiler->SerializeToString(&content);
   void* data = tensorflow::port::Malloc(content.length());
@@ -67,4 +68,27 @@ void TFE_StartProfilerServer(TFE_ProfilerContext* context, int port) {
   // Release child thread intentionally. The child thread can be terminate by
   // terminating the main thread.
   tensorflow::StartProfilerServer(&context->profiler_context, port).release();
+}
+
+void TFE_ContextEnableGraphCollection(TFE_Context* ctx) {
+  ctx->context.SetShouldStoreGraphs(true);
+}
+
+void TFE_ContextDisableGraphCollection(TFE_Context* ctx) {
+  ctx->context.SetShouldStoreGraphs(false);
+}
+
+bool TFE_ProfilerClientStartTracing(const char* service_addr,
+                                    const char* logdir, const char* worker_list,
+                                    bool include_dataset_ops, int duration_ms,
+                                    int num_tracing_attempts) {
+  tensorflow::Status s =
+      tensorflow::profiler::client::ValidateHostPortPair(service_addr);
+  if (!s.ok()) {
+    return false;
+  }
+  s = tensorflow::profiler::client::StartTracing(
+      service_addr, logdir, worker_list, include_dataset_ops, duration_ms,
+      num_tracing_attempts);
+  return s.ok();
 }

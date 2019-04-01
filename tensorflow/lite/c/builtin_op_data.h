@@ -368,6 +368,19 @@ typedef struct {
   TfLiteType index_out_type;
 } TfLiteUniqueParams;
 
+typedef struct {
+  int seq_dim;
+  int batch_dim;
+} TfLiteReverseSequenceParams;
+
+typedef struct {
+  EmptyStructPlaceholder placeholder;
+} TfLiteMatrixDiagParams;
+
+typedef struct {
+  EmptyStructPlaceholder placeholder;
+} TfLiteMatrixSetDiagParams;
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
