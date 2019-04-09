@@ -1,7 +1,7 @@
 #include "tensorflow/compiler/xla/service/instruction_fusion.h"
 #include "tensorflow/compiler/xla/service/gpu/gpu_fusible.h"
 
-class NewFusion:LibraryFusion {
+class NewFusion:FusionPass {
 
 HloComputation computation;
 
@@ -35,7 +35,7 @@ HloInstruction& GetProducer(const HloInstruction& instruction, int idx)
   return instruction.operand(idx);
 }
 
-int GetMapping(const HloInstruction& instruction);
+int GetPatternKind(const HloInstruction& instruction);
 
 bool IsLegalToFuse(const HloInstruction& inst1, const HloInstruction& inst2, bool MultiOutput = true);
 

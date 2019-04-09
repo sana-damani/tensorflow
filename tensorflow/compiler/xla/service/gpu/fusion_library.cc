@@ -11,7 +11,7 @@ HloInstruction& NewFusion::GetRoot(bool RPO=false)
   }
 }
 
-int NewFusion::GetMapping(const HloInstruction& instruction)
+int NewFusion::GetPatternKind(const HloInstruction& instruction)
 {
   if (instruction.IsElementwise())
     return 0;
