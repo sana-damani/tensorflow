@@ -1,48 +1,73 @@
-#include "tensorflow/compiler/xla/service/instruction_fusion.h"
+#ifndef TENSORFLOW_COMPILER_XLA_SERVICE_GPU_FUSION_LIBRARY_H_
+#define TENSORFLOW_COMPILER_XLA_SERVICE_GPU_FUSION_LIBRARY_H_
+
 #include "tensorflow/compiler/xla/service/gpu/gpu_fusible.h"
+#include "tensorflow/compiler/xla/service/gpu/instruction_fusion.h"
+#include "tensorflow/compiler/xla/service/hlo_cost_analysis.h"
+#include "tensorflow/compiler/xla/service/llvm_ir/fused_ir_emitter.h"
+#include "tensorflow/compiler/xla/shape_util.h"
+#include "tensorflow/compiler/xla/util.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
+#include "tensorflow/compiler/xla/service/gpu/FusionHeader.h"
+#include "tensorflow/compiler/xla/service/hlo_pass_interface.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
+#include "tensorflow/compiler/xla/service/gpu/ir_emission_utils.h"
 
-class NewFusion:FusionPass {
+namespace xla {
+namespace gpu {
 
-HloComputation computation;
+class NewFusion : public FusionPass<HloInstruction>, public GpuInstructionFusion {
 
 public:
 
-NewFusion(HloComputation& computation, int arch) {this.computation = computation;}
+HloComputation *computation;
 
-HloInstruction& GetRoot(bool RPO=false);
+NewFusion() : GpuInstructionFusion(true) {}
+
+absl::string_view name() const override { return "new fusion"; }
+
+StatusOr<bool> Run(HloModule* module) override;
+
+NodeType getRoot(bool RPO=false);
+
+OpPatternKind getPatternKind(NodeType);
 
 bool SupportsDuplication() {return true;}
 
 bool SupportsMultiOutputFusion() {return true;}
 
-int GetNumConsumers(const HloInstruction& instruction)
+int GetNumConsumers(HloInstruction* instruction)
 {
-  return instruction.user_count();
+  return instruction->user_count();
 }
 
-HloInstruction& GetConsumer(const HloInstruction& instruction, int idx)
+HloInstruction* GetConsumer(HloInstruction* instruction, int idx)
 {
-  return instruction.users(idx);
+  return instruction->users()[idx];
 }
 
-int GetNumProducers(const HloInstruction& instruction)
+int GetNumProducers(HloInstruction* instruction)
 {
-  return instruction.operand_count();
+  return instruction->operand_count();
 }
 
-HloInstruction& GetProducer(const HloInstruction& instruction, int idx)
+HloInstruction* GetProducer(HloInstruction* instruction, int idx)
 {
-  return instruction.operand(idx);
+  return instruction->operands()[idx];
 }
 
-int GetPatternKind(const HloInstruction& instruction);
+bool IsLegalToFuse(HloInstruction* inst1, HloInstruction* inst2, bool MultiOutput = true);
 
-bool IsLegalToFuse(const HloInstruction& inst1, const HloInstruction& inst2, bool MultiOutput = true);
+int GetFusionCost(HloInstruction* inst1, HloInstruction* inst2);
 
-int GetFusionCost(const HloInstruction& inst1, const HloInstruction& inst2);
+NodeType Merge(NodeType inst1, NodeType inst2, bool Duplicate, bool ProducerConsumer);
 
-HloInstruction& Merge(const HloInstruction& inst1, const HloInstruction& inst2, bool Duplicate, bool ProducerConsumer);
+HloInstruction* MergeIntoConsumer(HloInstruction* inst1, HloInstruction* inst2, bool Duplicate);
 
-HloInstruction& MergeIntoConsumer(const HloInstruction& inst1, const HloInstruction& inst2, bool Duplicate);
-
+};
 }
+}
+#endif

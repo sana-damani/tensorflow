@@ -1,6 +1,13 @@
 #include "tensorflow/compiler/xla/service/gpu/fusion_library.h"
+#include "absl/algorithm/container.h"
+#include "absl/strings/str_join.h"
+#include "tensorflow/compiler/xla/service/gpu/gpu_fusible.h"
+#include "tensorflow/compiler/xla/service/gpu/instruction_fusion.h"
 
-HloInstruction& NewFusion::GetRoot(bool RPO=false)
+namespace xla {
+namespace gpu {
+
+NewFusion::NodeType NewFusion::getRoot(bool RPO)
 {
   absl::Span<HloInstruction* const> post_order = computation->MakeInstructionPostOrder();
 
@@ -11,15 +18,15 @@ HloInstruction& NewFusion::GetRoot(bool RPO=false)
   }
 }
 
-int NewFusion::GetPatternKind(const HloInstruction& instruction)
+OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
 {
-  if (instruction.IsElementwise())
-    return 0;
-  if (!IsFusible(instruction) || ImplementedAsLibraryCall(instruction))
-    return 5;
-  switch(instruction.opcode) {
+  if (instruction->IsElementwise())
+    return kElemWise;
+  if (!IsFusible(*instruction) || ImplementedAsLibraryCall(*instruction))
+    return kOpaque;
+  switch(instruction->opcode()) {
     case HloOpcode::kBroadcast:
-      return 1;
+      return kBroadcast;
     case HloOpcode::kConcatenate:
     case HloOpcode::kSlice:
     case HloOpcode::kDynamicSlice:
@@ -29,65 +36,64 @@ int NewFusion::GetPatternKind(const HloInstruction& instruction)
     case HloOpcode::kTranspose:
     case HloOpcode::kPad:
       // injective
-      return 2;
+      return kInjective;
     case HloOpcode::kReduce:
-      return 3;
+      return kCommReduce;
     case HloOpcode::kConvolution:
-      return 4;
+      return kOutEWiseFusable;
   }
-  return 5;
+  return kOpaque;
 }
 
-bool NewFusion::IsLegalToFuse(const HloInstruction& inst1, const HloInstruction& inst2, bool MultiOutput)
+bool NewFusion::IsLegalToFuse(HloInstruction* inst1, HloInstruction* inst2, bool MultiOutput)
 {
   if (MultiOutput)
-    return ShapesCompatibleForMultiOutputFusion(inst1, inst2);
+    return ShapesCompatibleForMultiOutputFusion(*inst1, *inst2);
   else
     return true;
 }
 
-int NewFusion::GetFusionCost(const HloInstruction& inst1, const HloInstruction& inst2)
+int NewFusion::GetFusionCost(HloInstruction* inst1, HloInstruction* inst2)
 {
   return 0;
 }
 
-HloInstruction& NewFusion::Merge(const HloInstruction& inst1, const HloInstruction& inst2, bool Duplicate, bool ProducerConsumer)
+NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeType inst2, bool Duplicate, bool ProducerConsumer)
 {
-  HloInstruction &fusion_instruction;
-
   if (ProducerConsumer) {
-    MergeIntoConsumer(inst1, inst2, Duplicate);
+    return MergeIntoConsumer(inst1, inst2, Duplicate);
   } else {
     // no relation between nodes being fused: perform multioutput fusion
-    fusion_instruction = FuseIntoMultiOutput(inst1, inst2);
+    return FuseIntoMultiOutput(inst1, inst2);
   }
+  return NULL;
 }
 
-HloInstruction& NewFusion::MergeIntoConsumer(const HloInstruction& inst1, const HloInstruction& inst2, bool Duplicate)
+HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* inst1, HloInstruction* inst2, bool Duplicate)
 {
-  HloInstruction &fusion_instruction;
-
   if (GetNumConsumers(inst1) == 1) {
-      fusion_instruction = Fuse(inst1, inst2);
+      return Fuse(inst1, inst2);
   } else {
     if (Duplicate) {
-      fusion_instruction = Fuse(inst1, inst2);
+      return Fuse(inst1, inst2);
     } else {
-      fusion_instruction = FuseIntoMultiOutput(inst1, inst2);
+      return FuseIntoMultiOutput(inst1, inst2);
     }
   }
-
-  return fusion_instruction;
-}
+  return NULL;
 }
 
-void RunNewFusion(HloModule* module) {
+StatusOr<bool> NewFusion::Run(HloModule* module) {
   VLOG(2) << "Before new fusion:";
   XLA_VLOG_LINES(2, module->ToString());
 
-  for (int idx = 0; idx < module->computations.size(); idx++) {
-    NewFusion<HloInstruction> fusion(module->computations[idx].get());
-    fusion.Run();
+  for (auto* computation : module->computations()) {
+    NewFusion fusion;
+    fusion.computation = computation;
+//    fusion.runFusion();
+//    fusion.doMerge();
   }
+  return Status::OK();
 }
-
+}
+}

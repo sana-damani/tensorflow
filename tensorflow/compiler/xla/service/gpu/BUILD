@@ -866,6 +866,7 @@ cc_library(
         ":cudnn_fused_conv_rewriter",
         ":cusolver_rewriter",
         ":fusion_merger",
+        ":fusion_library",
         ":gpu_constants",
         ":gpu_copy_insertion",
         ":gpu_executable",
@@ -1249,5 +1250,24 @@ xla_proto_library(
         "//tensorflow/compiler/xla:xla_data_proto",
         "//tensorflow/compiler/xla/service:hlo_proto",
         "//tensorflow/core:autotuning_proto_cc",
+    ],
+)
+
+cc_library(
+    name = "fusion_library",
+    srcs = ["fusion_library.cc"],
+    hdrs = ["fusion_library.h", "FusionHeader.h"],
+    deps = [
+        ":gpu_fusible",
+        ":instruction_fusion",
+        "//tensorflow/compiler/xla:shape_util",
+        "//tensorflow/compiler/xla:util",
+        "//tensorflow/compiler/xla/service:hlo",
+        "//tensorflow/compiler/xla/service:hlo_cost_analysis",
+        "//tensorflow/compiler/xla/service:hlo_pass",
+        "//tensorflow/compiler/xla/service/llvm_ir:fused_ir_emitter",
+        "//tensorflow/core:lib",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings",
     ],
 )
