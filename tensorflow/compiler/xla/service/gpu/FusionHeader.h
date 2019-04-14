@@ -32,20 +32,10 @@ public:
   using VectorOfNodes = std::vector<NodeType>;
   using QofNodes = std::queue<NodeType>;
 
-  virtual NodeType getRoot(bool RPO=false)=0; //IR specific, get the root/exit node, Add a boolean flag
+  virtual NodeType getRoot(bool RPO=true)=0; //IR specific, get the root/exit node, Add a boolean flag
   virtual NodeType Merge(NodeType inst1, NodeType inst2, bool Duplicate=false, bool ProducerConsumer=true) = 0;
   virtual OpPatternKind getPatternKind(NodeType inst) = 0;
-  virtual int GetNumConsumers(NodeType instruction) = 0;
-  virtual NodeType GetConsumer(NodeType instruction, int idx) = 0;
-
-  SetOfNodes getConsumers(NodeType X ) { //IR specific, Get the successors of a node, 
-    SetOfNodes Consumers ; 
-    unsigned num = GetNumConsumers(X );
-    for (unsigned i = 0 ; i < num ; i++){
-      Consumers.insert(GetConsumer(X, i));
-    }
-    return Consumers;
-  }
+  virtual void GetConsumers(NodeType instruction, SetOfNodes& consumers) = 0;
 
   NodeType combinePattern(
       NodeType &X, NodeType &Y) {
@@ -123,8 +113,10 @@ public:
 
     while (!Qnodes.empty()) {
       auto Node = Qnodes.front(); Qnodes.pop();
+      if (Node == NULL) break;
       auto ParentNode = findGroupParent(Node);
-      SetOfNodes Consumers = getConsumers(Node);
+      SetOfNodes Consumers;
+      GetConsumers(Node, Consumers);
       bool canFuse = true ;
       //check if Node can be fused with all its consumers
       for (auto ConsNode : Consumers) {

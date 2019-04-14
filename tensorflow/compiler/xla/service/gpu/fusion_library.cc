@@ -9,13 +9,11 @@ namespace gpu {
 
 NewFusion::NodeType NewFusion::getRoot(bool RPO)
 {
-  absl::Span<HloInstruction* const> post_order = computation->MakeInstructionPostOrder();
-
-  if (RPO) {
-    return post_order[post_order.size() - 1];
-  } else {
-    return post_order[0];
-  }
+  auto post_order = computation->MakeInstructionPostOrder();
+  if (!RPO)
+    return computation->root_instruction();
+  else
+    return post_order.back();
 }
 
 OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
@@ -90,10 +88,10 @@ StatusOr<bool> NewFusion::Run(HloModule* module) {
   for (auto* computation : module->computations()) {
     NewFusion fusion;
     fusion.computation = computation;
-//    fusion.runFusion();
-//    fusion.doMerge();
+    fusion.runFusion();
+    fusion.doMerge();
   }
-  return Status::OK();
+  return false;
 }
 }
 }

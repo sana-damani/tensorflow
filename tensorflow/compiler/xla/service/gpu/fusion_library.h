@@ -31,13 +31,19 @@ absl::string_view name() const override { return "new fusion"; }
 
 StatusOr<bool> Run(HloModule* module) override;
 
-NodeType getRoot(bool RPO=false);
+NodeType getRoot(bool RPO=true);
 
 OpPatternKind getPatternKind(NodeType);
 
 bool SupportsDuplication() {return true;}
 
 bool SupportsMultiOutputFusion() {return true;}
+
+void GetConsumers(NodeType instruction, SetOfNodes& Consumers)
+{ 
+  for (auto it : instruction->users())
+    Consumers.insert(it);
+}
 
 int GetNumConsumers(HloInstruction* instruction)
 {
@@ -46,7 +52,10 @@ int GetNumConsumers(HloInstruction* instruction)
 
 HloInstruction* GetConsumer(HloInstruction* instruction, int idx)
 {
-  return instruction->users()[idx];
+  if (idx < instruction->user_count())
+    return instruction->users()[idx];
+  else
+    return NULL;
 }
 
 int GetNumProducers(HloInstruction* instruction)

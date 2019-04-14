@@ -365,11 +365,11 @@ Status OptimizeHloModule(HloModule* hlo_module, se::StreamExecutor* stream_exec,
         /*layout_sensitive=*/true,
         /*allow_mixed_precision=*/false,
         LayoutAssignment::InstructionCanChangeLayout);
-//    fusion.AddPass<NewFusion>();
-    fusion.AddPass<GpuInstructionFusion>(/*may_duplicate=*/false);
-    fusion.AddPass<GpuInstructionFusion>(/*may_duplicate=*/true);
-    fusion.AddPass<FusionMerger>();
-    fusion.AddPass<GpuMultiOutputFusion>();
+    fusion.AddPass<NewFusion>();
+//    fusion.AddPass<GpuInstructionFusion>(/*may_duplicate=*/false);
+//    fusion.AddPass<GpuInstructionFusion>(/*may_duplicate=*/true);
+//    fusion.AddPass<FusionMerger>();
+//    fusion.AddPass<GpuMultiOutputFusion>();
     fusion.AddPass<HloCSE>(/*is_layout_sensitive=*/true,
                            /*only_fusion_computations=*/true);
     fusion.AddPass<HloDCE>();
