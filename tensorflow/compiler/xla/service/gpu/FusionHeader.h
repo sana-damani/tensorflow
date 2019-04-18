@@ -1,9 +1,21 @@
 #include <iostream>
-
+#include <fstream>
 #include <set>
+#include <string>
 #include <queue>
 #include <map>
 
+std::ofstream debugDumpfile;
+using namespace std;
+
+#define DBGPRINT( var ) \
+  (debugDumpfile) << "DBG: " << __FUNCTION__ << "(" << __LINE__ << ") "\
+       << #var << " = [" << (var) << "]" << std::endl
+#define DBGPRINTSET( setVars ) \
+  for (auto child : setVars ) {\
+    DBGPRINT( child ); \
+  }
+   
 enum OpPatternKind {
   // Elementwise operation
   kElemWise = 0,
@@ -31,9 +43,17 @@ public:
   using SetOfNodes = std::set<NodeType>;
   using VectorOfNodes = std::vector<NodeType>;
   using QofNodes = std::queue<NodeType>;
+  FusionPass(){
+      debugDumpfile.open ("FusionHeaderDump.txt", std::ios_base::app);
+  }
+  ~FusionPass(){
+      debugDumpfile.close();
+  }
 
+  virtual string getString(NodeType inst)=0; //IR specific, get instruction as string
   virtual NodeType getRoot(bool RPO=true)=0; //IR specific, get the root/exit node, Add a boolean flag
   virtual NodeType Merge(NodeType inst1, NodeType inst2, bool Duplicate=false, bool ProducerConsumer=true) = 0;
+  virtual NodeType MergeIntoConsumers(NodeType inst) = 0;
   virtual OpPatternKind getPatternKind(NodeType inst) = 0;
   virtual void GetConsumers(NodeType instruction, SetOfNodes& consumers) = 0;
 
@@ -69,7 +89,11 @@ public:
   bool cannotFuse(NodeType &X, NodeType &Y) {
     auto Op1 = getPatternKind(X);
     auto Op2 = getPatternKind(Y);
-    if (isOpPatternKindsFusible(Op1,Op2))
+    DBGPRINT(Op1);
+    DBGPRINT(Op1);
+    auto CanFuseFlag = isOpPatternKindsFusible(Op1,Op2);
+    DBGPRINT(CanFuseFlag);
+    if (CanFuseFlag)
       return false;
     return true;
   }
@@ -99,9 +123,15 @@ public:
 
   //Fuse N with the set of Nodes
   void fuseAllNodes(NodeType N, SetOfNodes RestOfNodes){
+    auto FuseParent = N;
+    string fuseparent = getString(FuseParent);
+    DBGPRINT(fuseparent);
+    //DBGPRINTSET(RestOfNodes);
     FusedNodesMap[N] = RestOfNodes;
-    for (auto F : RestOfNodes) {
-      unionGroups(N,F);
+    for (auto FuseChild : RestOfNodes) {
+      string fusechild = getString(FuseChild);
+      DBGPRINT(fusechild);
+      unionGroups(N,FuseChild);
     }
   }
 
@@ -113,17 +143,27 @@ public:
 
     while (!Qnodes.empty()) {
       auto Node = Qnodes.front(); Qnodes.pop();
+      string node = getString(Node);
+      DBGPRINT(node);
       if (Node == NULL) break;
       auto ParentNode = findGroupParent(Node);
+      DBGPRINT("Try to fuse");
+      string parentnode = getString(ParentNode);
+      DBGPRINT(parentnode);
       SetOfNodes Consumers;
       GetConsumers(Node, Consumers);
+      //DBGPRINTSET(Consumers);
       bool canFuse = true ;
       //check if Node can be fused with all its consumers
       for (auto ConsNode : Consumers) {
         Qnodes.push(ConsNode);
+        string cons = getString(ConsNode);
+        DBGPRINT(cons);
         auto ParentConsNode = findGroupParent(ConsNode);
         if (ParentConsNode == ParentNode) continue; //already in same group
         if (cannotFuse(ParentConsNode, ParentNode)) {
+          auto Cannot_Fuse = ParentConsNode;
+          DBGPRINT(Cannot_Fuse);
           canFuse = false;
           break;
         }
@@ -133,11 +173,32 @@ public:
     }
   }
   void doMerge(){
+    std::map<NodeType, NodeType> OldNodes_MergedNodeMap;
     for (auto Iter : FusedNodesMap){
       auto ParentNode = Iter.first;
+      if (OldNodes_MergedNodeMap.find(ParentNode) != OldNodes_MergedNodeMap.end()) {
+        continue;
+        ParentNode = OldNodes_MergedNodeMap[ParentNode];
+      }
+      string parentnode = getString(ParentNode);
+      DBGPRINT(parentnode);
       for (auto ConsNode: Iter.second){
-        Merge(ParentNode, ConsNode, true);
+        string consnode = getString(ConsNode);
+        DBGPRINT(consnode);
+        if (OldNodes_MergedNodeMap.find(ConsNode) != OldNodes_MergedNodeMap.end()) {
+          ConsNode = OldNodes_MergedNodeMap[ConsNode];
+        }
+      }
+      // fuse into all consumers
+      auto MergedNode = MergeIntoConsumers(ParentNode);
+      string mergednode = getString(MergedNode);
+      DBGPRINT(mergednode);
+      // update map
+      OldNodes_MergedNodeMap[ParentNode] = MergedNode;
+      for (auto ConsNode: Iter.second){
+        OldNodes_MergedNodeMap[ConsNode] = MergedNode;
       }
     }
   }
 };
+

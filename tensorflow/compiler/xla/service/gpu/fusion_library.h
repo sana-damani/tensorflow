@@ -31,6 +31,8 @@ absl::string_view name() const override { return "new fusion"; }
 
 StatusOr<bool> Run(HloModule* module) override;
 
+string getString(NodeType inst) { return inst->ToString();}
+
 NodeType getRoot(bool RPO=true);
 
 OpPatternKind getPatternKind(NodeType);
@@ -41,8 +43,10 @@ bool SupportsMultiOutputFusion() {return true;}
 
 void GetConsumers(NodeType instruction, SetOfNodes& Consumers)
 { 
-  for (auto it : instruction->users())
-    Consumers.insert(it);
+  for (auto it : instruction->users()) {
+    if (it != computation->root_instruction())
+      Consumers.insert(it);
+  }
 }
 
 int GetNumConsumers(HloInstruction* instruction)
@@ -71,6 +75,8 @@ HloInstruction* GetProducer(HloInstruction* instruction, int idx)
 bool IsLegalToFuse(HloInstruction* inst1, HloInstruction* inst2, bool MultiOutput = true);
 
 int GetFusionCost(HloInstruction* inst1, HloInstruction* inst2);
+
+NodeType MergeIntoConsumers(NodeType instruction);
 
 NodeType Merge(NodeType inst1, NodeType inst2, bool Duplicate, bool ProducerConsumer);
 

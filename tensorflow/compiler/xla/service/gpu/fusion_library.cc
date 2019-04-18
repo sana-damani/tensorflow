@@ -13,14 +13,12 @@ NewFusion::NodeType NewFusion::getRoot(bool RPO)
   if (!RPO)
     return computation->root_instruction();
   else
-    return post_order.back();
+    return post_order.front();
 }
 
 OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
 {
-  if (instruction->IsElementwise())
-    return kElemWise;
-  if (!IsFusible(*instruction) || ImplementedAsLibraryCall(*instruction))
+  if (!IsFusible(*instruction) || ImplementedAsLibraryCall(*instruction) || instruction->opcode() == HloOpcode::kConstant)
     return kOpaque;
   switch(instruction->opcode()) {
     case HloOpcode::kBroadcast:
@@ -33,13 +31,14 @@ OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
     case HloOpcode::kReverse:
     case HloOpcode::kTranspose:
     case HloOpcode::kPad:
-      // injective
       return kInjective;
     case HloOpcode::kReduce:
       return kCommReduce;
     case HloOpcode::kConvolution:
       return kOutEWiseFusable;
   }
+  if (instruction->IsElementwise())
+    return kElemWise;
   return kOpaque;
 }
 
@@ -56,6 +55,27 @@ int NewFusion::GetFusionCost(HloInstruction* inst1, HloInstruction* inst2)
   return 0;
 }
 
+NewFusion::NodeType NewFusion::MergeIntoConsumers(NewFusion::NodeType instruction)
+{
+  // aim: to prevent GTE limitation
+
+  if (instruction->user_count() == 0 || !instruction->IsFusible())
+    return instruction;
+
+  // first fuse all consumers together
+  HloInstruction* merged = NULL;
+  for (auto it : instruction->users()) {
+    if (merged == NULL) {
+      merged = it;
+    } else {
+      merged = Fuse(it, merged);
+    }
+  }
+  
+  // fuse producer into fused consumer
+  return MergeIntoConsumer(instruction, merged, false);
+}
+
 NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeType inst2, bool Duplicate, bool ProducerConsumer)
 {
   if (ProducerConsumer) {
@@ -67,18 +87,53 @@ NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeT
   return NULL;
 }
 
-HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* inst1, HloInstruction* inst2, bool Duplicate)
+HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* producer, HloInstruction* consumer, bool Duplicate)
 {
-  if (GetNumConsumers(inst1) == 1) {
-      return Fuse(inst1, inst2);
-  } else {
-    if (Duplicate) {
-      return Fuse(inst1, inst2);
+  if (consumer->opcode() != HloOpcode::kFusion) {
+    auto fKind = ChooseKind(producer, consumer);
+
+    HloInstruction* fusion =
+        computation->AddInstruction(HloInstruction::CreateFusion(
+            consumer->shape(), fKind, consumer));
+    VLOG(2) << "Fuse producer " << producer->name() << " and its consumer "
+            << consumer->name() << " into " << fusion->name();
+    TF_CHECK_OK(computation->ReplaceInstruction(consumer, fusion));
+    if (producer->opcode() == HloOpcode::kFusion) {
+      if (Duplicate) {
+        fusion->MergeFusionInstruction(producer);
+      } else {
+        fusion->MergeFusionInstructionIntoMultiOutput(producer);
+      }
     } else {
-      return FuseIntoMultiOutput(inst1, inst2);
+      if (Duplicate) {
+        fusion->FuseInstruction(producer);
+      } else {
+        fusion->FuseInstructionIntoMultiOutput(producer);
+      }
     }
+    if (producer->user_count() == 0)
+      computation->RemoveInstruction(producer);
+    return fusion;
+  } else {
+    VLOG(2) << "Fuse producer " << producer->name() << " into its consumer "
+            << consumer->name();
+    if (producer->opcode() == HloOpcode::kFusion) {
+      if (Duplicate) {
+        consumer->MergeFusionInstruction(producer);
+      } else {
+        consumer->MergeFusionInstructionIntoMultiOutput(producer);
+      }
+    } else {
+      if (Duplicate) {
+        consumer->FuseInstruction(producer);
+      } else {
+        consumer->FuseInstructionIntoMultiOutput(producer);
+      }
+    }
+    if (producer->user_count() == 0)
+      computation->RemoveInstruction(producer);
+    return consumer;
   }
-  return NULL;
 }
 
 StatusOr<bool> NewFusion::Run(HloModule* module) {
