@@ -18,8 +18,8 @@ NewFusion::NodeType NewFusion::getRoot(bool RPO)
 
 OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
 {
-  if (!IsFusible(*instruction) || ImplementedAsLibraryCall(*instruction) || instruction->opcode() == HloOpcode::kConstant)
-    return kOpaque;
+/*  if (!IsFusible(*instruction) || ImplementedAsLibraryCall(*instruction))
+    return kOpaque;*/
   switch(instruction->opcode()) {
     case HloOpcode::kBroadcast:
       return kBroadcast;
@@ -36,6 +36,8 @@ OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
       return kCommReduce;
     case HloOpcode::kConvolution:
       return kOutEWiseFusable;
+    case HloOpcode::kConstant:
+      return kOpaque;
   }
   if (instruction->IsElementwise())
     return kElemWise;
@@ -63,17 +65,17 @@ NewFusion::NodeType NewFusion::MergeIntoConsumers(NewFusion::NodeType instructio
     return instruction;
 
   // first fuse all consumers together
-  HloInstruction* merged = NULL;
+  /*HloInstruction* merged = NULL;
   for (auto it : instruction->users()) {
     if (merged == NULL) {
       merged = it;
     } else {
-      merged = Fuse(it, merged);
+//      merged = Fuse(it, merged);
     }
-  }
+  }*/
   
   // fuse producer into fused consumer
-  return MergeIntoConsumer(instruction, merged, false);
+  return MergeIntoConsumer(instruction, instruction->users().front(), true);
 }
 
 NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeType inst2, bool Duplicate, bool ProducerConsumer)
@@ -111,8 +113,6 @@ HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* producer, HloInstru
         fusion->FuseInstructionIntoMultiOutput(producer);
       }
     }
-    if (producer->user_count() == 0)
-      computation->RemoveInstruction(producer);
     return fusion;
   } else {
     VLOG(2) << "Fuse producer " << producer->name() << " into its consumer "
@@ -130,8 +130,6 @@ HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* producer, HloInstru
         consumer->FuseInstructionIntoMultiOutput(producer);
       }
     }
-    if (producer->user_count() == 0)
-      computation->RemoveInstruction(producer);
     return consumer;
   }
 }
@@ -140,13 +138,14 @@ StatusOr<bool> NewFusion::Run(HloModule* module) {
   VLOG(2) << "Before new fusion:";
   XLA_VLOG_LINES(2, module->ToString());
 
+  bool changed = false;
   for (auto* computation : module->computations()) {
     NewFusion fusion;
     fusion.computation = computation;
-    fusion.runFusion();
+    changed = fusion.runFusion();
     fusion.doMerge();
   }
-  return false;
+  return changed;
 }
 }
 }

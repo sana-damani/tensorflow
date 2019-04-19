@@ -1271,3 +1271,18 @@ cc_library(
         "@com_google_absl//absl/strings",
     ],
 )
+
+tf_cc_test(
+    name = "fusion_library_test",
+    srcs = ["fusion_library_test.cc"],
+    deps = [
+        ":fusion_library",
+        ":fusion_merger",
+        ":instruction_fusion",
+        "//tensorflow/compiler/xla:test_helpers",
+        "//tensorflow/compiler/xla/service:hlo_matchers",
+        "//tensorflow/compiler/xla/service:hlo_parser",
+        "//tensorflow/compiler/xla/tests:hlo_test_base",
+        "//tensorflow/compiler/xla/tests:xla_internal_test_main",
+    ],
+)

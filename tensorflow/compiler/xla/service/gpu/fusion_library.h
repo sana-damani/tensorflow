@@ -44,8 +44,7 @@ bool SupportsMultiOutputFusion() {return true;}
 void GetConsumers(NodeType instruction, SetOfNodes& Consumers)
 { 
   for (auto it : instruction->users()) {
-    if (it != computation->root_instruction())
-      Consumers.insert(it);
+    Consumers.insert(it);
   }
 }
 

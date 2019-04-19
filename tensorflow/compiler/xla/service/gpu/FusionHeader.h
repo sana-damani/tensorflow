@@ -90,7 +90,7 @@ public:
     auto Op1 = getPatternKind(X);
     auto Op2 = getPatternKind(Y);
     DBGPRINT(Op1);
-    DBGPRINT(Op1);
+    DBGPRINT(Op2);
     auto CanFuseFlag = isOpPatternKindsFusible(Op1,Op2);
     DBGPRINT(CanFuseFlag);
     if (CanFuseFlag)
@@ -135,11 +135,12 @@ public:
     }
   }
 
-  void runFusion() {
+  bool runFusion() {
     //get the root node
     NodeType RootNode = getRoot();
     SetOfNodes AlreadyVisitedSet;
     QofNodes Qnodes; Qnodes.push(RootNode);
+    bool DidFusion = false;
 
     while (!Qnodes.empty()) {
       auto Node = Qnodes.front(); Qnodes.pop();
@@ -152,6 +153,8 @@ public:
       DBGPRINT(parentnode);
       SetOfNodes Consumers;
       GetConsumers(Node, Consumers);
+      int count = Consumers.size();
+      DBGPRINT(count);
       //DBGPRINTSET(Consumers);
       bool canFuse = true ;
       //check if Node can be fused with all its consumers
@@ -161,16 +164,19 @@ public:
         DBGPRINT(cons);
         auto ParentConsNode = findGroupParent(ConsNode);
         if (ParentConsNode == ParentNode) continue; //already in same group
-        if (cannotFuse(ParentConsNode, ParentNode)) {
+        if (cannotFuse(ParentNode, ParentConsNode)) {
           auto Cannot_Fuse = ParentConsNode;
           DBGPRINT(Cannot_Fuse);
           canFuse = false;
           break;
         }
       }
-      if (canFuse) //Fuse Node with all its consumers
+      if (canFuse) { //Fuse Node with all its consumers
         fuseAllNodes(Node, Consumers);
+        DidFusion = true;
+      }
     }
+    return DidFusion;
   }
   void doMerge(){
     std::map<NodeType, NodeType> OldNodes_MergedNodeMap;
@@ -185,9 +191,6 @@ public:
       for (auto ConsNode: Iter.second){
         string consnode = getString(ConsNode);
         DBGPRINT(consnode);
-        if (OldNodes_MergedNodeMap.find(ConsNode) != OldNodes_MergedNodeMap.end()) {
-          ConsNode = OldNodes_MergedNodeMap[ConsNode];
-        }
       }
       // fuse into all consumers
       auto MergedNode = MergeIntoConsumers(ParentNode);
