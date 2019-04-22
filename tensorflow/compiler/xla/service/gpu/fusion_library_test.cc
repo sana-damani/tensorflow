@@ -26,10 +26,11 @@ namespace xla {
 namespace gpu {
 namespace {
 
+std::ofstream debugDumpfile;
+
 namespace op = xla::testing::opcode_matchers;
 
 using NewFusionTest = HloTestBase ;
-
 
 // Tests that broadcasts fused into a fusion with a reduce root.
 TEST_F(NewFusionTest, BroadcastIntoReduce) {
@@ -51,16 +52,24 @@ TEST_F(NewFusionTest, BroadcastIntoReduce) {
     })")
                     .ValueOrDie();
 
+  debugDumpfile.open ("fusion_library_test_log.txt", std::ios_base::app);
+  string before = module->ToString();
+  DBGPRINT(before);
+/*  EXPECT_TRUE(GpuInstructionFusion(true)
+                  .Run(module.get())
+                  .ValueOrDie());*/
   EXPECT_TRUE(NewFusion()
-                   .Run(module.get())
-                   .ValueOrDie());
+                  .Run(module.get())
+                  .ValueOrDie());
 
+  string after = module->ToString();
+  DBGPRINT(after);
+  debugDumpfile.close();
   HloInstruction* root = module->entry_computation()->root_instruction();
   EXPECT_THAT(root, op::Fusion());
   EXPECT_THAT(root->fused_expression_root(),
               op::Reduce(op::Broadcast(op::Constant()), op::Constant()));
 }
-
 
 }  // namespace
 }  // namespace gpu

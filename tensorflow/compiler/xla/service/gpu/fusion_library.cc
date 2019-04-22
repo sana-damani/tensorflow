@@ -36,8 +36,8 @@ OpPatternKind NewFusion::getPatternKind(NewFusion::NodeType instruction)
       return kCommReduce;
     case HloOpcode::kConvolution:
       return kOutEWiseFusable;
-    case HloOpcode::kConstant:
-      return kOpaque;
+//    case HloOpcode::kConstant:
+//      return kOpaque;
   }
   if (instruction->IsElementwise())
     return kElemWise;
@@ -75,7 +75,7 @@ NewFusion::NodeType NewFusion::MergeIntoConsumers(NewFusion::NodeType instructio
   }*/
   
   // fuse producer into fused consumer
-  return MergeIntoConsumer(instruction, instruction->users().front(), true);
+  return MergeIntoConsumer(instruction, instruction->users().front(), false);
 }
 
 NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeType inst2, bool Duplicate, bool ProducerConsumer)
@@ -89,46 +89,73 @@ NewFusion::NodeType NewFusion::Merge(NewFusion::NodeType inst1, NewFusion::NodeT
   return NULL;
 }
 
-HloInstruction* NewFusion::MergeIntoConsumer(HloInstruction* producer, HloInstruction* consumer, bool Duplicate)
+NewFusion::NodeType NewFusion::MergeIntoConsumer(NewFusion::NodeType producer, NewFusion::NodeType consumer, bool Duplicate)
 {
   if (consumer->opcode() != HloOpcode::kFusion) {
     auto fKind = ChooseKind(producer, consumer);
+    DBGPRINT("Fusing non-fusion consumer");
 
-    HloInstruction* fusion =
-        computation->AddInstruction(HloInstruction::CreateFusion(
+    HloInstruction* fusion = computation->AddInstruction(HloInstruction::CreateFusion(
             consumer->shape(), fKind, consumer));
     VLOG(2) << "Fuse producer " << producer->name() << " and its consumer "
             << consumer->name() << " into " << fusion->name();
     TF_CHECK_OK(computation->ReplaceInstruction(consumer, fusion));
     if (producer->opcode() == HloOpcode::kFusion) {
+      DBGPRINT("with fusion producer");
       if (Duplicate) {
+        DBGPRINT("with duplication");
         fusion->MergeFusionInstruction(producer);
       } else {
+        DBGPRINT("without duplication");
         fusion->MergeFusionInstructionIntoMultiOutput(producer);
       }
     } else {
+      DBGPRINT("with non-fusion producer");
       if (Duplicate) {
+        DBGPRINT("with duplication");
         fusion->FuseInstruction(producer);
       } else {
+        DBGPRINT("without duplication");
         fusion->FuseInstructionIntoMultiOutput(producer);
       }
     }
+    string fusedstr = getString(fusion->fused_expression_root());
+    DBGPRINT(fusedstr);
+    HloInstruction* root = computation->root_instruction();
+    if (root->opcode() == HloOpcode::kFusion) {
+    string rootstr = getString(root->fused_expression_root());
+    DBGPRINT(rootstr);
+    }
     return fusion;
   } else {
+    DBGPRINT("Fusing fusion consumer");
     VLOG(2) << "Fuse producer " << producer->name() << " into its consumer "
             << consumer->name();
     if (producer->opcode() == HloOpcode::kFusion) {
+      DBGPRINT("with fusion producer");
       if (Duplicate) {
+        DBGPRINT("with duplication");
         consumer->MergeFusionInstruction(producer);
       } else {
+        DBGPRINT("without duplication");
         consumer->MergeFusionInstructionIntoMultiOutput(producer);
       }
     } else {
+      DBGPRINT("with non-fusion producer");
       if (Duplicate) {
+        DBGPRINT("with duplication");
         consumer->FuseInstruction(producer);
       } else {
+        DBGPRINT("without duplication");
         consumer->FuseInstructionIntoMultiOutput(producer);
       }
+    }
+    string fusedstr = getString(consumer->fused_expression_root());
+    DBGPRINT(fusedstr);
+    HloInstruction* root = computation->root_instruction();
+    if (root->opcode() == HloOpcode::kFusion) {
+    string rootstr = getString(root->fused_expression_root());
+    DBGPRINT(rootstr);
     }
     return consumer;
   }

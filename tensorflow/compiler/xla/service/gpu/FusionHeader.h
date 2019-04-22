@@ -183,7 +183,7 @@ public:
     for (auto Iter : FusedNodesMap){
       auto ParentNode = Iter.first;
       if (OldNodes_MergedNodeMap.find(ParentNode) != OldNodes_MergedNodeMap.end()) {
-        continue;
+        //continue;
         ParentNode = OldNodes_MergedNodeMap[ParentNode];
       }
       string parentnode = getString(ParentNode);
