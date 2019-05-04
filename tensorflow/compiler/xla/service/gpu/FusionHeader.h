@@ -51,11 +51,12 @@ public:
   }
 
   virtual string getString(NodeType inst)=0; //IR specific, get instruction as string
-  virtual NodeType getRoot(bool RPO=true)=0; //IR specific, get the root/exit node, Add a boolean flag
+  virtual NodeType getRoot(bool RPO=false)=0; //IR specific, get the root/exit node, Add a boolean flag
   virtual NodeType Merge(NodeType inst1, NodeType inst2, bool Duplicate=false, bool ProducerConsumer=true) = 0;
   virtual NodeType MergeIntoConsumers(NodeType inst) = 0;
   virtual OpPatternKind getPatternKind(NodeType inst) = 0;
   virtual void GetConsumers(NodeType instruction, SetOfNodes& consumers) = 0;
+  virtual void GetProducers(NodeType instruction, SetOfNodes& producers) = 0;
 
   NodeType combinePattern(
       NodeType &X, NodeType &Y) {
@@ -91,7 +92,7 @@ public:
     auto Op2 = getPatternKind(Y);
     DBGPRINT(Op1);
     DBGPRINT(Op2);
-    auto CanFuseFlag = isOpPatternKindsFusible(Op1,Op2);
+    auto CanFuseFlag = isOpPatternKindsFusible(Op1,Op2) || isOpPatternKindsFusible(Op2,Op1);
     DBGPRINT(CanFuseFlag);
     if (CanFuseFlag)
       return false;
@@ -124,13 +125,12 @@ public:
   //Fuse N with the set of Nodes
   void fuseAllNodes(NodeType N, SetOfNodes RestOfNodes){
     auto FuseParent = N;
-    string fuseparent = getString(FuseParent);
-    DBGPRINT(fuseparent);
-    //DBGPRINTSET(RestOfNodes);
+    string FuseParentWithConsumersStr = getString(FuseParent);
+    DBGPRINT(FuseParentWithConsumersStr);
     FusedNodesMap[N] = RestOfNodes;
     for (auto FuseChild : RestOfNodes) {
-      string fusechild = getString(FuseChild);
-      DBGPRINT(fusechild);
+      string FuseChildWithParentStr = getString(FuseChild);
+      DBGPRINT(FuseChildWithParentStr);
       unionGroups(N,FuseChild);
     }
   }
@@ -138,43 +138,50 @@ public:
   bool runFusion() {
     //get the root node
     NodeType RootNode = getRoot();
+    string RootStr = getString(RootNode);
+    DBGPRINT(RootStr);
     SetOfNodes AlreadyVisitedSet;
     QofNodes Qnodes; Qnodes.push(RootNode);
     bool DidFusion = false;
 
     while (!Qnodes.empty()) {
       auto Node = Qnodes.front(); Qnodes.pop();
-      string node = getString(Node);
-      DBGPRINT(node);
+      string NodeRBFSVisitStr = getString(Node);
+      DBGPRINT(NodeRBFSVisitStr);
       if (Node == NULL) break;
       auto ParentNode = findGroupParent(Node);
+      // if the Node already has a parent
+      // Means its already fused
+      //if (Node != ParentNode) continue;
       DBGPRINT("Try to fuse");
-      string parentnode = getString(ParentNode);
-      DBGPRINT(parentnode);
+      string ParentNodefromUnionGroup = getString(ParentNode);
+      DBGPRINT(ParentNodefromUnionGroup);
       SetOfNodes Consumers;
       GetConsumers(Node, Consumers);
-      int count = Consumers.size();
-      DBGPRINT(count);
-      //DBGPRINTSET(Consumers);
       bool canFuse = true ;
       //check if Node can be fused with all its consumers
       for (auto ConsNode : Consumers) {
-        Qnodes.push(ConsNode);
-        string cons = getString(ConsNode);
-        DBGPRINT(cons);
+        string ConsNodeCheckifFusibleStr = getString(ConsNode);
+        DBGPRINT(ConsNodeCheckifFusibleStr);
         auto ParentConsNode = findGroupParent(ConsNode);
         if (ParentConsNode == ParentNode) continue; //already in same group
-        if (cannotFuse(ParentNode, ParentConsNode)) {
+        if (cannotFuse(ParentConsNode, ParentNode)) {
           auto Cannot_Fuse = ParentConsNode;
           DBGPRINT(Cannot_Fuse);
           canFuse = false;
           break;
         }
       }
-      if (canFuse) { //Fuse Node with all its consumers
-        fuseAllNodes(Node, Consumers);
+      if (canFuse) //Fuse Node with all its consumers
+      {
         DidFusion = true;
+        fuseAllNodes(Node, Consumers);
       }
+      //Now push all producers of this node into the Q
+      SetOfNodes Producers;
+      GetProducers(Node, Producers);
+      for (auto P : Producers) 
+        Qnodes.push(P);
     }
     return DidFusion;
   }
@@ -182,20 +189,18 @@ public:
     std::map<NodeType, NodeType> OldNodes_MergedNodeMap;
     for (auto Iter : FusedNodesMap){
       auto ParentNode = Iter.first;
-      if (OldNodes_MergedNodeMap.find(ParentNode) != OldNodes_MergedNodeMap.end()) {
+      if (OldNodes_MergedNodeMap.find(ParentNode) != OldNodes_MergedNodeMap.end()){
+        // If this Node was already fused to its parent
         //continue;
+        // Then consider the Fused Node
         ParentNode = OldNodes_MergedNodeMap[ParentNode];
       }
-      string parentnode = getString(ParentNode);
-      DBGPRINT(parentnode);
-      for (auto ConsNode: Iter.second){
-        string consnode = getString(ConsNode);
-        DBGPRINT(consnode);
-      }
+      string ParentnodeStr = getString(ParentNode);
+      DBGPRINT(ParentnodeStr);
       // fuse into all consumers
       auto MergedNode = MergeIntoConsumers(ParentNode);
-      string mergednode = getString(MergedNode);
-      DBGPRINT(mergednode);
+      string MergednodeStr = getString(MergedNode);
+      DBGPRINT(MergednodeStr);
       // update map
       OldNodes_MergedNodeMap[ParentNode] = MergedNode;
       for (auto ConsNode: Iter.second){

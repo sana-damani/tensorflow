@@ -41,6 +41,13 @@ bool SupportsDuplication() {return true;}
 
 bool SupportsMultiOutputFusion() {return true;}
 
+void GetProducers(NodeType instruction, SetOfNodes& Consumers)
+{ 
+  for (auto it : instruction->operands()) {
+    Consumers.insert(it);
+  }
+}
+
 void GetConsumers(NodeType instruction, SetOfNodes& Consumers)
 { 
   for (auto it : instruction->users()) {
