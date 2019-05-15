@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ctime>
 #include <fstream>
 #include <set>
 #include <string>
@@ -7,9 +8,9 @@
 
 std::ofstream debugDumpfile;
 using namespace std;
-
+#define PRINT_TIME (asctime(localtime(&getTime)))
 #define DBGPRINT( var ) \
-  (debugDumpfile) << "DBG: " << __FUNCTION__ << "(" << __LINE__ << ") "\
+  (debugDumpfile) << "DBG: "<< __FUNCTION__ << "(" << __LINE__ << ") "\
        << #var << " = [" << (var) << "]" << std::endl
 #define DBGPRINTSET( setVars ) \
   for (auto child : setVars ) {\
@@ -35,6 +36,7 @@ enum OpPatternKind {
   kOpaque = 8
 };
 
+time_t getTime;
 template <class T>
 class FusionPass {
 public:
@@ -44,10 +46,11 @@ public:
   using VectorOfNodes = std::vector<NodeType>;
   using QofNodes = std::queue<NodeType>;
   FusionPass(){
-      debugDumpfile.open ("FusionHeaderDump.txt", std::ios_base::app);
+      //debugDumpfile.open ("NewFusionHeaderDump.txt", std::ios_base::app);
+      time (&getTime);
   }
   ~FusionPass(){
-      debugDumpfile.close();
+      //debugDumpfile.close();
   }
 
   virtual string getString(NodeType inst)=0; //IR specific, get instruction as string
@@ -137,6 +140,7 @@ public:
 
   bool runFusion() {
     //get the root node
+    debugDumpfile.open ("NewFusionHeaderDump.txt", std::ios_base::app);
     NodeType RootNode = getRoot();
     string RootStr = getString(RootNode);
     DBGPRINT(RootStr);
@@ -184,8 +188,10 @@ public:
         Qnodes.push(P);
     }
     return DidFusion;
+    debugDumpfile.close();
   }
   void doMerge(){
+    debugDumpfile.open ("NewFusionHeaderDump.txt", std::ios_base::app);
     std::map<NodeType, NodeType> OldNodes_MergedNodeMap;
     for (auto Iter : FusedNodesMap){
       auto ParentNode = Iter.first;
@@ -207,6 +213,7 @@ public:
         OldNodes_MergedNodeMap[ConsNode] = MergedNode;
       }
     }
+    debugDumpfile.close();
   }
 };
 
