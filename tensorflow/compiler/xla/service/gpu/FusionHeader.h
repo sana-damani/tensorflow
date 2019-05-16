@@ -93,7 +93,9 @@ public:
   bool cannotFuse(NodeType &X, NodeType &Y) {
     auto Op1 = getPatternKind(X);
     auto Op2 = getPatternKind(Y);
+    DBGPRINT(getString(X));
     DBGPRINT(Op1);
+    DBGPRINT(getString(Y));
     DBGPRINT(Op2);
     auto CanFuseFlag = isOpPatternKindsFusible(Op1,Op2) || isOpPatternKindsFusible(Op2,Op1);
     DBGPRINT(CanFuseFlag);
