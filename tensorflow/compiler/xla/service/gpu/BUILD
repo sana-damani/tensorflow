@@ -1286,3 +1286,17 @@ tf_cc_test(
         "//tensorflow/compiler/xla/tests:xla_internal_test_main",
     ],
 )
+tf_cc_test(
+    name = "crashing_tests_fusion",
+    srcs = ["crashing_tests_fusion.cpp"],
+    deps = [
+        ":fusion_library",
+        ":fusion_merger",
+        ":instruction_fusion",
+        "//tensorflow/compiler/xla:test_helpers",
+        "//tensorflow/compiler/xla/service:hlo_matchers",
+        "//tensorflow/compiler/xla/service:hlo_parser",
+        "//tensorflow/compiler/xla/tests:hlo_test_base",
+        "//tensorflow/compiler/xla/tests:xla_internal_test_main",
+    ],
+)

@@ -590,17 +590,50 @@ TEST_F(NewFusionTest, T10_Elem2Conv_Convolve1D1Window_0_module) {
   DBGPRINT(before);
   auto msg = "GpuInstructionFusion output:";
   DBGPRINT(msg);
-  EXPECT_TRUE(GpuInstructionFusion(true).Run(module.get()).ValueOrDie());
+  //EXPECT_TRUE(GpuInstructionFusion(true).Run(module.get()).ValueOrDie());
   msg = "Our Fusion Output:";
   DBGPRINT(msg);
   //TODO: This Crashes
-  //EXPECT_TRUE(NewFusion().Run(module.get()).ValueOrDie());
+  EXPECT_TRUE(NewFusion().Run(module.get()).ValueOrDie());
 
   string after = module->ToString();
   DBGPRINT(after);
   debugDumpfile.close();
   //HloInstruction* root = module->entry_computation()->root_instruction();
   //EXPECT_THAT(root, op::Fusion());
+  //EXPECT_THAT(root->fused_expression_root(),
+  //            op::Reduce(op::Broadcast(op::Constant()), op::Constant()));
+}
+
+TEST_F(NewFusionTest, T2_Injective2Opaque_ReshapeIntoDot) {
+
+  auto module = ParseHloString(R"(
+    HloModule test_module
+
+    ENTRY Injective2Opaque_ReshapeIntoDot {
+      arg0 = s32[1,2,1]{2,1,0} parameter(0)
+      reshape.rhs = s32[2,1]{1,0} reshape(arg0)
+      ROOT inj3 = s32[1,2]{1,0} reshape(reshape.rhs )
+    })")
+                    .ValueOrDie();
+
+  debugDumpfile.open ("fusion_library_test_log.txt", std::ios_base::app);
+  string before = module->ToString();
+  DBGPRINT(before);
+  auto msg = "GpuInstructionFusion output:";
+  DBGPRINT(msg);
+ // EXPECT_TRUE(GpuInstructionFusion(true)
+ //                 .Run(module.get())
+ //                 .ValueOrDie());
+  msg = "Our Fusion Output:";
+  DBGPRINT(msg);
+  EXPECT_TRUE(NewFusion().Run(module.get()).ValueOrDie());
+
+  string after = module->ToString();
+  DBGPRINT(after);
+  debugDumpfile.close();
+  // HloInstruction* root = module->entry_computation()->root_instruction();
+  // EXPECT_THAT(root, op::Dot());
   //EXPECT_THAT(root->fused_expression_root(),
   //            op::Reduce(op::Broadcast(op::Constant()), op::Constant()));
 }
